@@ -7,7 +7,9 @@ import {
   User, 
   Menu,
   Shield,
-  LogIn
+  LogIn,
+  LogOut,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,25 +21,24 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { CurrencyDisplay } from "@/components/ui/currency-display";
 
 const navLinks = [
   { href: "/coinflip", label: "Coinflip", icon: Coins },
   { href: "/mines", label: "Mines", icon: Bomb },
 ];
 
-// Mock user state - will be replaced with real auth
-const mockUser = {
-  username: "Player123",
-  balance: 1250.50,
-  isLoggedIn: true,
-  isAdmin: true,
-};
-
 export function Navbar() {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, profile, isAdmin, balance, isLoading, signOut } = useAuth();
 
   const isActive = (path: string) => location.pathname === path;
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
 
   return (
     <motion.header
@@ -86,7 +87,9 @@ export function Navbar() {
 
         {/* Right Side - Balance & User */}
         <div className="flex items-center gap-3">
-          {mockUser.isLoggedIn ? (
+          {isLoading ? (
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          ) : user ? (
             <>
               {/* Balance Display */}
               <Link to="/wallet">
@@ -95,9 +98,7 @@ export function Navbar() {
                   className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg bg-muted border border-border/50 hover:border-primary/30 transition-colors cursor-pointer"
                 >
                   <Wallet className="w-4 h-4 text-primary" />
-                  <span className="currency text-foreground">
-                    F${mockUser.balance.toLocaleString()}
-                  </span>
+                  <CurrencyDisplay amount={balance} className="font-medium" />
                 </motion.div>
               </Link>
 
@@ -119,10 +120,8 @@ export function Navbar() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   <div className="px-2 py-1.5">
-                    <p className="text-sm font-medium">{mockUser.username}</p>
-                    <p className="text-xs text-muted-foreground currency">
-                      F${mockUser.balance.toLocaleString()}
-                    </p>
+                    <p className="text-sm font-medium">{profile?.username || 'Player'}</p>
+                    <CurrencyDisplay amount={balance} className="text-xs text-muted-foreground" />
                   </div>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
@@ -137,7 +136,7 @@ export function Navbar() {
                       Profile
                     </Link>
                   </DropdownMenuItem>
-                  {mockUser.isAdmin && (
+                  {isAdmin && (
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem asChild>
@@ -149,7 +148,11 @@ export function Navbar() {
                     </>
                   )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="text-destructive cursor-pointer">
+                  <DropdownMenuItem 
+                    className="text-destructive cursor-pointer"
+                    onClick={handleSignOut}
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
                     Sign Out
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -197,21 +200,25 @@ export function Navbar() {
                     Provably Fair
                   </Button>
                 </Link>
-                <Link to="/wallet" onClick={() => setMobileMenuOpen(false)}>
-                  <Button
-                    variant={isActive("/wallet") ? "casino-outline" : "ghost"}
-                    className="w-full justify-start gap-2"
-                  >
-                    <Wallet className="w-4 h-4" />
-                    Wallet
-                  </Button>
-                </Link>
-                <div className="my-4 border-t border-border" />
-                <Link to="/wallet" onClick={() => setMobileMenuOpen(false)}>
-                  <Button variant="deposit" className="w-full">
-                    Deposit
-                  </Button>
-                </Link>
+                {user && (
+                  <>
+                    <Link to="/wallet" onClick={() => setMobileMenuOpen(false)}>
+                      <Button
+                        variant={isActive("/wallet") ? "casino-outline" : "ghost"}
+                        className="w-full justify-start gap-2"
+                      >
+                        <Wallet className="w-4 h-4" />
+                        Wallet
+                      </Button>
+                    </Link>
+                    <div className="my-4 border-t border-border" />
+                    <Link to="/wallet" onClick={() => setMobileMenuOpen(false)}>
+                      <Button variant="deposit" className="w-full">
+                        Deposit
+                      </Button>
+                    </Link>
+                  </>
+                )}
               </nav>
             </SheetContent>
           </Sheet>

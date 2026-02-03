@@ -1,24 +1,109 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { Mail, Lock, User, ArrowRight, Sparkles } from "lucide-react";
+import { Mail, Lock, User, ArrowRight, Sparkles, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/contexts/AuthContext";
+import { z } from "zod";
+
+const emailSchema = z.string().email("Invalid email address");
+const passwordSchema = z.string().min(8, "Password must be at least 8 characters");
+const usernameSchema = z.string().min(3, "Username must be at least 3 characters").max(20, "Username max 20 characters");
 
 export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  
+  const { user, signIn, signUp } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    // TODO: Implement login
+  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/";
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate(from, { replace: true });
+    }
+  }, [user, navigate, from]);
+
+  const validateForm = (isSignup: boolean) => {
+    const errors: Record<string, string> = {};
+    
+    const emailResult = emailSchema.safeParse(email);
+    if (!emailResult.success) {
+      errors.email = emailResult.error.errors[0].message;
+    }
+    
+    const passwordResult = passwordSchema.safeParse(password);
+    if (!passwordResult.success) {
+      errors.password = passwordResult.error.errors[0].message;
+    }
+    
+    if (isSignup) {
+      const usernameResult = usernameSchema.safeParse(username);
+      if (!usernameResult.success) {
+        errors.username = usernameResult.error.errors[0].message;
+      }
+    }
+    
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement signup
+    setError(null);
+    
+    if (!validateForm(false)) return;
+    
+    setIsSubmitting(true);
+    
+    const { error } = await signIn(email, password);
+    
+    if (error) {
+      if (error.message.includes('Invalid login credentials')) {
+        setError('Invalid email or password');
+      } else if (error.message.includes('Email not confirmed')) {
+        setError('Please verify your email address before signing in');
+      } else {
+        setError(error.message);
+      }
+    }
+    
+    setIsSubmitting(false);
+  };
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    
+    if (!validateForm(true)) return;
+    
+    setIsSubmitting(true);
+    
+    const { error } = await signUp(email, password, username);
+    
+    if (error) {
+      if (error.message.includes('already registered') || error.message.includes('already exists')) {
+        setError('An account with this email already exists');
+      } else {
+        setError(error.message);
+      }
+    } else {
+      setSuccess('Account created! Please check your email to verify your account.');
+    }
+    
+    setIsSubmitting(false);
   };
 
   return (
@@ -60,6 +145,28 @@ export default function Auth() {
             </p>
           </div>
 
+          {/* Error/Success Messages */}
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-4 rounded-lg bg-destructive/10 border border-destructive/20 flex items-start gap-3"
+            >
+              <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+              <p className="text-sm text-destructive">{error}</p>
+            </motion.div>
+          )}
+          
+          {success && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-4 rounded-lg bg-success/10 border border-success/20"
+            >
+              <p className="text-sm text-success">{success}</p>
+            </motion.div>
+          )}
+
           <div className="card-casino p-6">
             <Tabs defaultValue="login" className="space-y-6">
               <TabsList className="grid w-full grid-cols-2">
@@ -82,8 +189,12 @@ export default function Auth() {
                         className="pl-10"
                         placeholder="you@example.com"
                         required
+                        disabled={isSubmitting}
                       />
                     </div>
+                    {validationErrors.email && (
+                      <p className="text-xs text-destructive mt-1">{validationErrors.email}</p>
+                    )}
                   </div>
 
                   <div>
@@ -99,13 +210,23 @@ export default function Auth() {
                         className="pl-10"
                         placeholder="••••••••"
                         required
+                        disabled={isSubmitting}
                       />
                     </div>
+                    {validationErrors.password && (
+                      <p className="text-xs text-destructive mt-1">{validationErrors.password}</p>
+                    )}
                   </div>
 
-                  <Button variant="casino" size="lg" className="w-full gap-2">
-                    Sign In
-                    <ArrowRight className="w-4 h-4" />
+                  <Button variant="casino" size="lg" className="w-full gap-2" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        Sign In
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
                   </Button>
                 </form>
               </TabsContent>
@@ -125,8 +246,12 @@ export default function Auth() {
                         className="pl-10"
                         placeholder="ChooseAUsername"
                         required
+                        disabled={isSubmitting}
                       />
                     </div>
+                    {validationErrors.username && (
+                      <p className="text-xs text-destructive mt-1">{validationErrors.username}</p>
+                    )}
                   </div>
 
                   <div>
@@ -142,8 +267,12 @@ export default function Auth() {
                         className="pl-10"
                         placeholder="you@example.com"
                         required
+                        disabled={isSubmitting}
                       />
                     </div>
+                    {validationErrors.email && (
+                      <p className="text-xs text-destructive mt-1">{validationErrors.email}</p>
+                    )}
                   </div>
 
                   <div>
@@ -160,16 +289,26 @@ export default function Auth() {
                         placeholder="••••••••"
                         required
                         minLength={8}
+                        disabled={isSubmitting}
                       />
                     </div>
+                    {validationErrors.password && (
+                      <p className="text-xs text-destructive mt-1">{validationErrors.password}</p>
+                    )}
                     <p className="text-xs text-muted-foreground mt-1">
                       Minimum 8 characters
                     </p>
                   </div>
 
-                  <Button variant="casino" size="lg" className="w-full gap-2">
-                    Create Account
-                    <ArrowRight className="w-4 h-4" />
+                  <Button variant="casino" size="lg" className="w-full gap-2" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        Create Account
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
                   </Button>
                 </form>
               </TabsContent>
