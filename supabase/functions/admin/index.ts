@@ -451,6 +451,129 @@ serve(async (req: Request) => {
       })
     }
 
+    // POST create user (admin only)
+    if (action === 'create-user' && req.method === 'POST') {
+      const { email, password, username, accountType } = body
+
+      if (!email || !password || !username) {
+        return new Response(JSON.stringify({ error: 'Missing required fields' }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        })
+      }
+
+      const validAccountTypes = ['standard', 'promotional', 'vip']
+      const finalAccountType = validAccountTypes.includes(accountType) ? accountType : 'standard'
+
+      // Create user using admin API
+      const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { username }
+      })
+
+      if (createError) {
+        console.error('User creation error:', createError)
+        return new Response(JSON.stringify({ error: createError.message }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        })
+      }
+
+      // Create profile with account type
+      await adminClient
+        .from('profiles')
+        .insert({
+          user_id: newUser.user.id,
+          username,
+          account_type: finalAccountType
+        })
+
+      // Give user role
+      await adminClient
+        .from('user_roles')
+        .insert({
+          user_id: newUser.user.id,
+          role: 'user'
+        })
+
+      // Initialize provably fair seeds
+      const serverSeed = crypto.randomUUID() + crypto.randomUUID()
+      const encoder = new TextEncoder()
+      const data = encoder.encode(serverSeed)
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+      const hashArray = Array.from(new Uint8Array(hashBuffer))
+      const serverSeedHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+
+      await adminClient
+        .from('provably_fair_seeds')
+        .insert({
+          user_id: newUser.user.id,
+          server_seed: serverSeed,
+          server_seed_hash: serverSeedHash,
+          client_seed: 'default_client_seed',
+          nonce: 0
+        })
+
+      // For promotional accounts, give them starting balance
+      if (finalAccountType === 'promotional') {
+        await adminClient
+          .from('ledger_entries')
+          .insert({
+            user_id: newUser.user.id,
+            type: 'DEPOSIT',
+            amount: 1000,
+            ref_id: `promo_initial_${newUser.user.id}`,
+            description: 'Promotional account initial balance'
+          })
+      }
+
+      await logAction('user', newUser.user.id, 'USER_CREATED', {
+        email,
+        username,
+        accountType: finalAccountType
+      })
+
+      console.log(`User created by admin: ${email} (${finalAccountType})`)
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        user: { 
+          id: newUser.user.id, 
+          email, 
+          username, 
+          accountType: finalAccountType 
+        } 
+      }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      })
+    }
+
+    // POST update user account type
+    if (action === 'update-account-type' && req.method === 'POST') {
+      const { targetUserId, accountType } = body
+
+      const validAccountTypes = ['standard', 'promotional', 'vip']
+      if (!validAccountTypes.includes(accountType)) {
+        return new Response(JSON.stringify({ error: 'Invalid account type' }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        })
+      }
+
+      await adminClient
+        .from('profiles')
+        .update({ account_type: accountType })
+        .eq('user_id', targetUserId)
+
+      await logAction('user', targetUserId, 'ACCOUNT_TYPE_CHANGED', { accountType })
+
+      return new Response(JSON.stringify({ success: true }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      })
+    }
+
     return new Response(JSON.stringify({ error: 'Invalid action' }), { 
       status: 400, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' } 

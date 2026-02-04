@@ -244,6 +244,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          account_type: string
           created_at: string
           id: string
           updated_at: string
@@ -251,6 +252,7 @@ export type Database = {
           username: string
         }
         Insert: {
+          account_type?: string
           created_at?: string
           id?: string
           updated_at?: string
@@ -258,6 +260,7 @@ export type Database = {
           username: string
         }
         Update: {
+          account_type?: string
           created_at?: string
           id?: string
           updated_at?: string
