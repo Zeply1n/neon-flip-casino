@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Coins, Bomb, Sparkles, Zap } from "lucide-react";
+import { Coins, Bomb, Sparkles, Zap, Rocket } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { GameCard } from "@/components/games/GameCard";
 import { Button } from "@/components/ui/button";
@@ -76,10 +76,10 @@ const Index = () => {
       <section>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-foreground">Games</h2>
-          <span className="text-sm text-muted-foreground">2 available</span>
+          <span className="text-sm text-muted-foreground">3 available</span>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-3 gap-6">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -96,6 +96,21 @@ const Index = () => {
           </motion.div>
 
           <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.55 }}
+          >
+            <GameCard
+              title="Crash"
+              description="Watch the multiplier rise and cash out before it crashes!"
+              icon={Rocket}
+              href="/crash"
+              accentColor="warning"
+              players={203}
+            />
+          </motion.div>
+
+          <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.6 }}
@@ -105,7 +120,7 @@ const Index = () => {
               description="Navigate the minefield. The more you reveal, the bigger your multiplier."
               icon={Bomb}
               href="/mines"
-              accentColor="warning"
+              accentColor="secondary"
               players={89}
             />
           </motion.div>

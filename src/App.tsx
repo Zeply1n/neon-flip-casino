@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
 import Coinflip from "./pages/Coinflip";
 import Mines from "./pages/Mines";
+import Crash from "./pages/Crash";
 import Wallet from "./pages/Wallet";
 import ProvablyFair from "./pages/ProvablyFair";
 import Auth from "./pages/Auth";
@@ -40,6 +41,11 @@ const App = () => (
             <Route path="/mines" element={
               <ProtectedRoute>
                 <Mines />
+              </ProtectedRoute>
+            } />
+            <Route path="/crash" element={
+              <ProtectedRoute>
+                <Crash />
               </ProtectedRoute>
             } />
             <Route path="/wallet" element={

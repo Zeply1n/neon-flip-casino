@@ -12,6 +12,40 @@ serve(async (req: Request) => {
   }
 
   try {
+    const url = new URL(req.url)
+    const action = url.pathname.split('/').pop()
+
+    const adminClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    )
+
+    // lookup-email is public (no auth required) - used for username login
+    if (action === 'lookup-email' && req.method === 'POST') {
+      const { userId: targetUserId } = await req.json()
+      
+      if (!targetUserId) {
+        return new Response(JSON.stringify({ error: 'User ID required' }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        })
+      }
+
+      const { data: userData, error: userError } = await adminClient.auth.admin.getUserById(targetUserId)
+      
+      if (userError || !userData?.user?.email) {
+        return new Response(JSON.stringify({ error: 'User not found' }), { 
+          status: 404, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        })
+      }
+
+      return new Response(JSON.stringify({ email: userData.user.email }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      })
+    }
+
+    // All other endpoints require auth
     const authHeader = req.headers.get('Authorization')
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
@@ -36,13 +70,6 @@ serve(async (req: Request) => {
     }
 
     const userId = claimsData.claims.sub as string
-    const url = new URL(req.url)
-    const action = url.pathname.split('/').pop()
-
-    const adminClient = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
 
     // GET balance and stats
     if (action === 'balance' && req.method === 'GET') {
@@ -216,6 +243,20 @@ serve(async (req: Request) => {
       if (!method || !destination) {
         return new Response(JSON.stringify({ error: 'Method and destination required' }), { 
           status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        })
+      }
+
+      // Check if user has promotional account (can't withdraw)
+      const { data: profile } = await adminClient
+        .from('profiles')
+        .select('account_type')
+        .eq('user_id', userId)
+        .single()
+
+      if (profile?.account_type === 'promotional') {
+        return new Response(JSON.stringify({ error: 'Promotional accounts cannot withdraw funds' }), { 
+          status: 403, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         })
       }

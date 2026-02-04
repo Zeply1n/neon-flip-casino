@@ -35,12 +35,15 @@ export default function Auth() {
     }
   }, [user, navigate, from]);
 
-  const validateForm = (isSignup: boolean) => {
+  const validateForm = (isSignup: boolean, isLogin: boolean = false) => {
     const errors: Record<string, string> = {};
     
-    const emailResult = emailSchema.safeParse(email);
-    if (!emailResult.success) {
-      errors.email = emailResult.error.errors[0].message;
+    // For login, only validate password - email/username can be either
+    if (!isLogin) {
+      const emailResult = emailSchema.safeParse(email);
+      if (!emailResult.success) {
+        errors.email = emailResult.error.errors[0].message;
+      }
     }
     
     const passwordResult = passwordSchema.safeParse(password);
@@ -63,7 +66,7 @@ export default function Auth() {
     e.preventDefault();
     setError(null);
     
-    if (!validateForm(false)) return;
+    if (!validateForm(false, true)) return;
     
     setIsSubmitting(true);
     
@@ -178,16 +181,16 @@ export default function Auth() {
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div>
                     <label className="text-sm font-medium text-foreground block mb-2">
-                      Email
+                      Email or Username
                     </label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
-                        type="email"
+                        type="text"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         className="pl-10"
-                        placeholder="you@example.com"
+                        placeholder="you@example.com or username"
                         required
                         disabled={isSubmitting}
                       />

@@ -134,12 +134,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (emailOrUsername: string, password: string) => {
+    // Check if it looks like an email
+    const isEmail = emailOrUsername.includes('@');
+    
+    if (isEmail) {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: emailOrUsername,
+        password
+      });
+      return { error };
+    }
+    
+    // It's a username - look up the email first
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('user_id')
+      .eq('username', emailOrUsername)
+      .maybeSingle();
+    
+    if (profileError || !profile) {
+      return { error: new Error('Invalid login credentials') };
+    }
+    
+    // Get email from auth.users via edge function
+    const { data, error: lookupError } = await supabase.functions.invoke('wallet/lookup-email', {
+      body: { userId: profile.user_id }
+    });
+    
+    if (lookupError || !data?.email) {
+      return { error: new Error('Invalid login credentials') };
+    }
+    
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: data.email,
       password
     });
-
+    
     return { error };
   };
 
